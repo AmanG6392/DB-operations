@@ -11,4 +11,5 @@ uri = os.getenv("DATABASE_URL")
 client = AsyncMongoClient(uri, server_api=ServerApi('1'))
 
 
-
+db = client["mydb"]
+users_collection = db["users"]
