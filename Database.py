@@ -13,3 +13,4 @@ client = AsyncMongoClient(uri, server_api=ServerApi('1'))
 
 db = client["mydb"]
 users_collection = db["users"]
+orders_collection = db["orders"]
