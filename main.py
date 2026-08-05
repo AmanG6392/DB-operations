@@ -4,13 +4,13 @@ from Cache import redis_client
 from fastapi import FastAPI, Request, HTTPException
 from Database import client
 from InsertingDocument import insert_document
-from FetchingDocument import fetcing_dataa, fetching_order
+from FetchingDocument import fetcing_dataa, fetching_order,fetching_all_orders
 from bson import ObjectId
 from Dfsiteration import dfsiteration
 from fastapi.middleware.gzip import GZipMiddleware
 from mergingShipDet import get_full_order
-from OrderUpdates import get_last_modified
-from ShippingDetails import connect_pg, close_pg, get_shipping_details, get_full_order
+from OrderUpdates import get_last_modified,get_global_last_modified
+from ShippingDetails import connect_pg, close_pg, get_shipping_details, get_all_shipping_details
 
 
 app = FastAPI()
@@ -91,7 +91,7 @@ async def get_user(user_id: str):
 
 
 
-@app.get("/orders/fulldetails/{order_id}")
+@app.get("/orders/fulldetai/{order_id}")
 async def get_order(order_id: str):
     doc =  await get_full_order(order_id)
     print(doc)
@@ -101,36 +101,57 @@ async def get_order(order_id: str):
 
 
 
-@app.get("/orders/{order_id}")
+@app.get("/orders/fulldetails/{order_id}")
 async def get_order(order_id: str):
     cache_key = f"order:{order_id}"
- 
-    # check when this order was last updated
-    current_modified = await get_last_modified(order_id)
- 
-    # check if we already have it cached
+
     cached = await redis_client.get(cache_key)
- 
+    current_modified = await get_last_modified(order_id)
+
     if cached:
-        cached_data = cached
-        
-        if cached:
-#         print(f"  CACHE HIT: {(t1-t0)*1000:.2f}ms")
-#         return json.loads(cached)
+        cached_data = json.loads(cached)
+        cached_modified = cached_data.get("_last_modified")
+
+        if current_modified and cached_modified == str(current_modified):
+            print("Cache Hit")
+            cached_data.pop("_last_modified", None)
+            return cached_data
+
+    doc = await fetching_order({"orderId": order_id})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    doc = dfsiteration(doc)
+    doc["shippingDetails"] = await get_shipping_details(order_id)
+
+    doc_to_cache = dict(doc)
+    doc_to_cache["_last_modified"] = str(current_modified) if current_modified else None
+    await redis_client.set(cache_key, json.dumps(doc_to_cache), ex=60)
+
+    print("Cache miss")
+    doc_to_cache.pop("_last_modified", None)
+    return doc_to_cache
 
 
 
-#     # 2. Cache miss — fetch from MongoDB
-#     doc = await fetching_order({"orderId": order_id})
-#     t2 = time.perf_counter()
+@app.get("/orders/all")
+async def get_all_orders():
+    orders = await fetching_all_orders()
 
-#     if not doc:
-#         raise HTTPException(status_code=404, detail="Order not found")
+    shipping_map = await get_all_shipping_details()
 
-#     doc = dfsiteration(doc)
+    result = []
 
-#     # 3. Store in Redis for next time (expires in 5 minutes)
-#     await redis_client.set(cache_key, json.dumps(doc), ex=300)
+    for order in orders:
+        order = dfsiteration(order)
 
-#     print(f"  CACHE MISS | DB fetch: {(t2-t1)*1000:.2f}ms")
-#     return doc
+        order.pop("_id", None)
+          
+        order["shippingDetails"] = shipping_map.get(order["orderId"])
+
+        result.append(order)
+
+    return {"count": len(result), "orders": result}
+
+

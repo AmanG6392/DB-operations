@@ -22,4 +22,7 @@ async def fetching_order(filter_query: dict):
             print(f"Fetch failed: {e}")
             return None           
                 
-    
+
+async def fetching_all_orders():
+    cursor = orders_collection.find({})
+    return [doc async for doc in cursor]   

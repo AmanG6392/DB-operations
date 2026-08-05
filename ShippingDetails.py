@@ -44,7 +44,7 @@ def reshape_shipping(row: dict) -> dict:
 
 async def get_shipping_details(order_id: str) -> dict | None:
     if pg_pool is None:
-        raise RuntimeError("Postgres pool not initialized — please use connect_pg() at beggining.")
+        raise RuntimeError(" please connect_pg() at start.")
 
     async with pg_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -52,3 +52,13 @@ async def get_shipping_details(order_id: str) -> dict | None:
         )
 
     return reshape_shipping(dict(row)) if row else None
+
+
+async def get_all_shipping_details() -> dict[str, dict]:
+    if pg_pool is None:
+        raise RuntimeError("please  connect_pg() at start.")
+
+    async with pg_pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM shipping_details")
+
+    return {row["order_id"]: reshape_shipping(dict(row)) for row in rows}
