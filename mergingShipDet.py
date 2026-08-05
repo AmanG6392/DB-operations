@@ -41,6 +41,7 @@ async def get_full_order(order_id: str) -> dict:
     row = await conn.fetchrow(
         "SELECT * FROM shipping_details WHERE order_id = $1", order_id
     )
+    print(row)
     await conn.close()
 
     mongo_doc["shippingDetails"] = reshape_shipping(dict(row)) if row else None

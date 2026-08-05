@@ -1,6 +1,6 @@
 import json
 import time
-# from Cache import redis_client
+from Cache import redis_client
 from fastapi import FastAPI, Request, HTTPException
 from Database import client
 from InsertingDocument import insert_document
@@ -9,20 +9,27 @@ from bson import ObjectId
 from Dfsiteration import dfsiteration
 from fastapi.middleware.gzip import GZipMiddleware
 from mergingShipDet import get_full_order
+from OrderUpdates import get_last_modified
+from ShippingDetails import connect_pg, close_pg, get_shipping_details, get_full_order
+
 
 app = FastAPI()
 
 
-# app.add_middleware(
-#     GZipMiddleware,
-#     minimum_size=1000
-# )
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=1000
+)
 
+
+@app.on_event("startup")
+async def startup_pg_pool():
+    await connect_pg()                                                                                                              
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    await client.close()
-    # await redis_client.close()
+    await client.close()  
+    await redis_client.close()
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
@@ -84,7 +91,46 @@ async def get_user(user_id: str):
 
 
 
+@app.get("/orders/fulldetails/{order_id}")
+async def get_order(order_id: str):
+    doc =  await get_full_order(order_id)
+    print(doc)
+
+    return doc
+
+
+
+
 @app.get("/orders/{order_id}")
 async def get_order(order_id: str):
-    return await get_full_order(order_id)
+    cache_key = f"order:{order_id}"
+ 
+    # check when this order was last updated
+    current_modified = await get_last_modified(order_id)
+ 
+    # check if we already have it cached
+    cached = await redis_client.get(cache_key)
+ 
+    if cached:
+        cached_data = cached
+        
+        if cached:
+#         print(f"  CACHE HIT: {(t1-t0)*1000:.2f}ms")
+#         return json.loads(cached)
 
+
+
+#     # 2. Cache miss — fetch from MongoDB
+#     doc = await fetching_order({"orderId": order_id})
+#     t2 = time.perf_counter()
+
+#     if not doc:
+#         raise HTTPException(status_code=404, detail="Order not found")
+
+#     doc = dfsiteration(doc)
+
+#     # 3. Store in Redis for next time (expires in 5 minutes)
+#     await redis_client.set(cache_key, json.dumps(doc), ex=300)
+
+#     print(f"  CACHE MISS | DB fetch: {(t2-t1)*1000:.2f}ms")
+#     return doc
