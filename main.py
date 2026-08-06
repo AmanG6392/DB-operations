@@ -101,7 +101,7 @@ async def get_order(order_id: str):
 
 
 
-@app.get("/orders/fulldetails/{order_id}")
+@app.get("/orders/{order_id}")
 async def get_order(order_id: str):
     cache_key = f"order:{order_id}"
 
@@ -135,23 +135,67 @@ async def get_order(order_id: str):
 
 
 
-@app.get("/orders/all")
-async def get_all_orders():
-    orders = await fetching_all_orders()
 
+ORDERS_CACHE_KEY = "orders:all"
+
+@app.get("/orders-all")
+async def get_all_orders():
+    current_modified = await get_global_last_modified()
+
+    cached = await redis_client.get(ORDERS_CACHE_KEY)
+    if cached:
+        cached_data = json.loads(cached)
+        cached_modified = cached_data.get("_last_modified")
+
+        if current_modified and cached_modified == str(current_modified):
+            print("Cache Hit (all orders)")
+            cached_data.pop("_last_modified", None)
+            return cached_data
+
+    orders = await fetching_all_orders()
     shipping_map = await get_all_shipping_details()
 
     result = []
-
     for order in orders:
         order = dfsiteration(order)
-
         order.pop("_id", None)
-          
         order["shippingDetails"] = shipping_map.get(order["orderId"])
-
         result.append(order)
 
-    return {"count": len(result), "orders": result}
+    response_data = {"count": len(result), "orders": result}
+
+    data_to_cache = dict(response_data)
+    data_to_cache["_last_modified"] = str(current_modified) if current_modified else None
+    await redis_client.set(ORDERS_CACHE_KEY, json.dumps(data_to_cache), ex=300)
+
+    print("Cache Miss (all orders)")
+    return response_data
 
 
+
+
+
+@app.delete("/cache/{order_id}")
+async def clear_order_cache(order_id: str):
+    cache_key = f"order:{order_id}"
+
+    deleted = await redis_client.delete(cache_key)
+
+    return {
+        "message": "Cache cleared",
+        "key": cache_key,
+        "deleted": deleted
+    }
+
+
+@app.delete("/cache-all")
+async def clear_order_cache():
+    cache_key = f"order:all"
+
+    deleted = await redis_client.delete(cache_key)
+
+    return {
+        "message": "Cache cleared",
+        "key": cache_key,
+        "deleted": deleted
+    }

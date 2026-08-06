@@ -38,6 +38,7 @@ async def get_full_order(order_id: str) -> dict:
         return {"error": f"No order found for {order_id}"}
 
     conn = await asyncpg.connect(NEON_URL)
+    
     row = await conn.fetchrow(
         "SELECT * FROM shipping_details WHERE order_id = $1", order_id
     )
