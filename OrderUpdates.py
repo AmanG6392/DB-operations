@@ -32,6 +32,7 @@ async def get_global_last_modified():
         row = await conn.fetchrow(
             "SELECT MAX(event_timestamp) as last_modified FROM order_updates"
         )
+        print(row)
         return row["last_modified"] if row["last_modified"] else None
     finally:
         await ShippingDetails.pg_pool.release(conn)        
