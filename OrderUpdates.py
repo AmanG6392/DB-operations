@@ -26,6 +26,10 @@ async def add_order_update(order_id: str, status: str, location: str = None):
         await ShippingDetails.pg_pool.release(conn)
 
 
+def format_timestamp(ts):
+    return ts.isoformat() if ts else None
+    
+
 async def get_global_last_modified():
     conn = await ShippingDetails.pg_pool.acquire()
     try:
