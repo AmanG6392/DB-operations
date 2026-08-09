@@ -36,3 +36,9 @@ async def get_global_last_modified():
         return row["last_modified"] if row["last_modified"] else None
     finally:
         await ShippingDetails.pg_pool.release(conn)        
+
+
+def format_timestamp(ts):
+    return ts.isoformat() if ts else None
+
+
