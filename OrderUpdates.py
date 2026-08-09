@@ -25,6 +25,9 @@ async def add_order_update(order_id: str, status: str, location: str = None):
     finally:
         await ShippingDetails.pg_pool.release(conn)
 
+def format_timestamp(ts):
+    return ts.isoformat() if ts else None
+
 
 async def get_global_last_modified():
     conn = await ShippingDetails.pg_pool.acquire()
@@ -33,12 +36,11 @@ async def get_global_last_modified():
             "SELECT MAX(event_timestamp) as last_modified FROM order_updates"
         )
         print(row)
-        return row["last_modified"] if row["last_modified"] else None
+        return format_timestamp(row["last_modified"]) if row["last_modified"] else None
     finally:
         await ShippingDetails.pg_pool.release(conn)        
 
 
-def format_timestamp(ts):
-    return ts.isoformat() if ts else None
+
 
 
